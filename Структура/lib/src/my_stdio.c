@@ -72,3 +72,26 @@ static int output_string(output_buffer_t* ob, const char* s, int len) {
     }
     return 0;
 }
+// ============================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ UTF-8
+// ============================================
+
+/* Определение длины UTF-8 символа по первому байту */
+static int utf8_char_length(unsigned char c) {
+    if (c < 0x80) return 1;           // 0xxxxxxx — 1 байт
+    if ((c & 0xE0) == 0xC0) return 2;  // 110xxxxx — 2 байта
+    if ((c & 0xF0) == 0xE0) return 3;  // 1110xxxx — 3 байта
+    if ((c & 0xF8) == 0xF0) return 4;  // 11110xxx — 4 байта
+    return 1;
+}
+
+/* Проверка, является ли символ пробельным (только ASCII) */
+static int is_space_ascii(char c) {
+    return (c == ' ' || c == '\t' || c == '\n' ||
+        c == '\r' || c == '\v' || c == '\f');
+}
+
+/* Проверка, является ли символ десятичной цифрой */
+static int is_digit_char(char c) {
+    return (c >= '0' && c <= '9');
+}
