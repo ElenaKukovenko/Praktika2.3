@@ -1,20 +1,17 @@
-# Исходные файлы приложения
-set(APP_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
-)
+cmake_minimum_required(VERSION 3.10)
+project(Praktika2_3)
 
-# Создаём исполняемый файл
-add_executable(my_stdiio ${APP_SOURCES})
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 
-# Связываем с библиотекой
-target_link_libraries(my_stdiio my_stdio)
+# Добавляем поддиректории (ВАЖНО: lib ПЕРВЫМ!)
+add_subdirectory(lib)
+add_subdirectory(add)
+add_subdirectory(tests)
 
-# Указываем папку с заголовками
-target_include_directories(my_stdiio PRIVATE
-    ${CMAKE_SOURCE_DIR}/lib/include
-)
+# Включаем тестирование
+enable_testing()
 
-# Устанавливаем выходную папку
-set_target_properties(my_stdiio PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/add
-)
+# Информация
+message(STATUS "Project: ${PROJECT_NAME}")
+message(STATUS "C Standard: ${CMAKE_C_STANDARD}")
