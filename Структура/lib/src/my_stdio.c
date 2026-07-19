@@ -95,3 +95,54 @@ static int is_space_ascii(char c) {
 static int is_digit_char(char c) {
     return (c >= '0' && c <= '9');
 }
+
+// ============================================
+// ПРЕОБРАЗОВАНИЯ ЧИСЕЛ
+// ============================================
+
+/* Преобразование беззнакового числа в строку с заданным основанием */
+static int unsigned_to_string(unsigned int value, char* buf, int base, int uppercase) {
+    const char* digits = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
+    char temp[32];
+    int pos = 0;
+
+    if (value == 0) {
+        temp[pos++] = '0';
+    }
+    else {
+        while (value > 0) {
+            temp[pos++] = digits[value % base];
+            value /= base;
+        }
+    }
+
+    /* Переворачиваем строку */
+    for (int i = 0; i < pos; i++) {
+        buf[i] = temp[pos - 1 - i];
+    }
+    return pos;
+}
+
+/* Преобразование знакового числа в строку */
+static int signed_to_string(int value, char* buf) {
+    unsigned int unsigned_val;
+    int negative = 0;
+
+    if (value < 0) {
+        negative = 1;
+        unsigned_val = (unsigned int)(-value);
+    }
+    else {
+        unsigned_val = (unsigned int)value;
+    }
+
+    int len = unsigned_to_string(unsigned_val, buf, 10, 0);
+
+    /* Добавляем знак минус в начало */
+    if (negative) {
+        for (int i = len; i > 0; i--) buf[i] = buf[i - 1];
+        buf[0] = '-';
+        len++;
+    }
+    return len;
+}
