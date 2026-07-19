@@ -55,3 +55,20 @@ static int output_flush(output_buffer_t* ob) {
     }
     return 0;
 }
+
+/* Вывод одного символа с буферизацией */
+static int output_char(output_buffer_t* ob, char c) {
+    ob->buf[ob->pos++] = c;
+    if (ob->pos >= BUFFER_SIZE) {
+        if (output_flush(ob) != 0) return -1;
+    }
+    return 0;
+}
+
+/* Вывод строки заданной длины */
+static int output_string(output_buffer_t* ob, const char* s, int len) {
+    for (int i = 0; i < len; i++) {
+        if (output_char(ob, s[i]) != 0) return -1;
+    }
+    return 0;
+}
