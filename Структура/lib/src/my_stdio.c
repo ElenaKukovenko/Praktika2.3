@@ -214,3 +214,112 @@ int my_printf(IN const char* format, OUT char** error_pos, ...) {
                 current++;
             }
         }
+
+        /* Проверка спецификатора */
+        char spec = *current;
+        if (spec == '\0') { error_sym = start; goto format_error; }
+        if (spec != 'd' && spec != 'u' && spec != 'x' && spec != 'X' &&
+            spec != 's' && spec != 'c') {
+            error_sym = current;
+            goto format_error;
+        }
+        current++;
+
+        /* Обработка числовых спецификаторов */
+        if (spec == 'd' || spec == 'u' || spec == 'x' || spec == 'X') {
+            int signed_num = (spec == 'd');
+            int base = 10, uppercase = 0;
+            if (spec == 'x' || spec == 'X') { base = 16; uppercase = (spec == 'X'); }
+
+            char num_buf[32];
+            int num_len = 0, negative = 0;
+
+            /* Получаем значение из аргументов */
+            if (signed_num) {
+                int val = va_arg(args, int);
+                num_len = signed_to_string(val, num_buf);
+                if (num_buf[0] == '-') negative = 1;
+            }
+            else {
+                unsigned int val = va_arg(args, unsigned int);
+                num_len = unsigned_to_string(val, num_buf, base, uppercase);
+            }
+
+            int sign_len = negative ? 1 : 0;
+            int digit_len = num_len - sign_len;
+            int pad = (width > num_len) ? width - num_len : 0;
+
+            /* Вывод с учётом выравнивания */
+            if (left_align) {
+                /* Выравнивание влево: число, потом пробелы */
+                if (output_string(&ob, num_buf, num_len) != 0) goto write_error;
+                for (int i = 0; i < pad; i++) output_char(&ob, ' ');
+            }
+            else {
+                if (zero_pad) {
+                    /* Заполнение нулями: знак, нули, цифры */
+                    if (negative) output_char(&ob, '-');
+                    for (int i = 0; i < pad; i++) output_char(&ob, '0');
+                    output_string(&ob, num_buf + sign_len, digit_len);
+                }
+                else {
+                    /* Обычное выравнивание вправо: пробелы, число */
+                    for (int i = 0; i < pad; i++) output_char(&ob, ' ');
+                    output_string(&ob, num_buf, num_len);
+                }
+            }
+        }
+        else if (spec == 's') {
+            /* Вывод строки */
+            const char* str = va_arg(args, const char*);
+            if (str == NULL) str = "(null)";
+
+            int str_len = 0;
+            while (str[str_len] != '\0') str_len++;
+            int pad = (width > str_len) ? width - str_len : 0;
+
+            if (left_align) {
+                if (output_string(&ob, str, str_len) != 0) goto write_error;
+                for (int i = 0; i < pad; i++) output_char(&ob, ' ');
+            }
+            else {
+                for (int i = 0; i < pad; i++) output_char(&ob, ' ');
+                if (output_string(&ob, str, str_len) != 0) goto write_error;
+            }
+        }
+        else if (spec == 'c') {
+            /* Вывод символа */
+            char ch = (char)va_arg(args, int);
+            int pad = (width > 1) ? width - 1 : 0;
+
+            if (left_align) {
+                if (output_char(&ob, ch) != 0) goto write_error;
+                for (int i = 0; i < pad; i++) output_char(&ob, ' ');
+            }
+            else {
+                for (int i = 0; i < pad; i++) output_char(&ob, ' ');
+                if (output_char(&ob, ch) != 0) goto write_error;
+            }
+        }
+    }
+
+    /* Сброс буфера */
+    if (output_flush(&ob) != 0) goto write_error;
+    result = ob.total;
+    goto finish;
+
+format_error:
+    /* Ошибка в форматной строке */
+    if (error_pos != NULL) *error_pos = (char*)error_sym;
+    result = -1;
+    goto finish;
+
+write_error:
+    /* Ошибка записи */
+    result = -1;
+    goto finish;
+
+finish:
+    va_end(args);
+    return result;
+}
