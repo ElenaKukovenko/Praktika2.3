@@ -407,3 +407,247 @@ static void unget_char(int c) {
         input_buffer[input_pos] = (char)c;
     }
 }
+
+// ============================================
+// MY_SCANF
+// ============================================
+
+int my_scanf(IN const char* format, OUT char** error_pos, ...) {
+    if (format == NULL) {
+        if (error_pos != NULL) *error_pos = NULL;
+        return -1;
+    }
+
+    init_input();
+
+    va_list args;
+    va_start(args, error_pos);
+
+    const char* current = format;
+    const char* error_sym = NULL;
+    int result = -1;
+    int total_bytes = 0;
+    int spec_index = 0;
+    int conversion_error = 0;
+
+    int ch;
+
+    while (*current != '\0' && !conversion_error) {
+        /* Обработка обычных символов форматной строки */
+        if (*current != '%') {
+            if (is_space_ascii(*current)) {
+                /* Пробел в формате — пропускаем пробелы во входном потоке */
+                while (1) {
+                    ch = get_next_char();               
+                    if (ch == EOF) {
+                        result = total_bytes;
+                        goto finish;
+                    }
+                    if (!is_space_ascii(ch)) {
+                        unget_char(ch);
+                        break;
+                    }
+                }
+            }
+            else {
+                /* Обычный символ — должен совпадать */
+                int char_len = utf8_char_length((unsigned char)*current);
+                for (int i = 0; i < char_len; i++) {
+                    ch = get_next_char();
+                    if (ch == EOF) {
+                        result = total_bytes;
+                        goto finish;
+                    }
+                    if (ch != (unsigned char)current[i]) {
+                        unget_char(ch);
+                        result = total_bytes;
+                        goto finish;
+                    }
+                    total_bytes++;
+                }
+                current += char_len - 1;
+            }
+            current++;
+            continue;
+        }
+
+        const char* start = current;
+        current++;
+
+        /* Обработка %% — ожидаем символ % во входном потоке */
+        if (*current == '\0') { error_sym = start; goto format_error; }
+        if (*current == '%') {
+            ch = get_next_char();
+            if (ch == EOF) {
+                result = total_bytes;
+                goto finish;
+            }
+            if (ch != '%') {
+                unget_char(ch);
+                result = total_bytes;
+                goto finish;
+            }
+            total_bytes++;
+            current++;
+            continue;
+        }
+
+        /* Пропускаем флаги (в scanf они не поддерживаются) */
+        while (*current == '-' || *current == '0') current++;
+
+        /* Ширина (поддерживается, но не обязательна) */
+        int width = 0;
+        if (*current == '*') {
+            error_sym = current;
+            goto format_error;
+        }
+        if (is_digit_char(*current)) {
+            while (is_digit_char(*current)) {
+                width = width * 10 + (*current - '0');
+                current++;
+            }
+        }
+
+        /* Проверка спецификатора */
+        char spec = *current;
+        if (spec == '\0') { error_sym = start; goto format_error; }
+        if (spec != 'd' && spec != 'u' && spec != 'x' && spec != 'X' &&
+            spec != 's' && spec != 'c') {
+            error_sym = current;
+            goto format_error;
+        }
+        current++;
+
+        int success = 0;
+
+        /* Обработка числовых спецификаторов */
+        if (spec == 'd' || spec == 'u' || spec == 'x' || spec == 'X') {
+            /* Пропускаем пробелы перед числом */
+            do {
+                ch = get_next_char();
+                if (ch == EOF) {
+                    result = total_bytes;
+                    goto finish;
+                }
+            } while (is_space_ascii(ch));
+            unget_char(ch);
+
+            char num_buf[32];
+            int buf_len = 0;
+            int had_sign = 0;
+
+            /* Читаем первый символ числа */
+            ch = get_next_char();
+            if (ch == EOF) {
+                result = total_bytes;
+                goto finish;
+            }
+
+            /* Обрабатываем знак */
+            if (ch == '-' || ch == '+') {
+                num_buf[buf_len++] = (char)ch;
+                had_sign = 1;
+                if (width > 0 && buf_len >= width) goto convert_number;
+                ch = get_next_char();
+                if (ch == EOF) goto convert_number;
+            }
+
+            /* Читаем цифры */
+            int is_hex = (spec == 'x' || spec == 'X');
+            while (1) {
+                if (width > 0 && buf_len >= width) break;
+                if (is_hex) {
+                    if (!((ch >= '0' && ch <= '9') ||
+                        (ch >= 'a' && ch <= 'f') ||
+                        (ch >= 'A' && ch <= 'F'))) break;
+                }
+                else {
+                    if (!is_digit_char((char)ch)) break;
+                }
+                num_buf[buf_len++] = (char)ch;
+                total_bytes++;
+                ch = get_next_char();
+                if (ch == EOF) break;
+            }
+            if (ch != EOF) unget_char(ch);
+
+        convert_number:
+            if (buf_len == 0 || (had_sign && buf_len == 1)) {
+                result = total_bytes;
+                goto finish;
+            }
+
+            num_buf[buf_len] = '\0';
+
+            /* Преобразуем строку в число */
+            if (spec == 'd') {
+                int int_result;
+                if (string_to_int(num_buf, buf_len, &int_result) != 0) {
+                    conversion_error = 1;
+                    spec_index++;
+                    break;
+                }
+                int* ptr = va_arg(args, int*);
+                if (ptr != NULL) *ptr = int_result;
+            }
+            else {
+                unsigned int uint_result;
+                int conv_result = (spec == 'u')
+                    ? string_to_unsigned(num_buf, buf_len, &uint_result)
+                    : string_to_hex(num_buf, buf_len, &uint_result);
+                if (conv_result != 0) {
+                    conversion_error = 1;
+                    spec_index++;
+                    break;
+                }
+                unsigned int* ptr = va_arg(args, unsigned int*);
+                if (ptr != NULL) *ptr = uint_result;
+            }
+            success = 1;
+        }
+        else if (spec == 's') {
+            /* Чтение строки */
+            char* str = va_arg(args, char*);
+            int len = read_console_line(str, 99);
+
+            if (len <= 0) {
+                result = total_bytes;
+                goto finish;
+            }
+
+            total_bytes += len;
+            success = 1;
+        }
+        else if (spec == 'c') {
+            /* Чтение символа */
+            char* ch_ptr = va_arg(args, char*);
+            ch = get_next_char();
+            if (ch == EOF) {
+                result = total_bytes;
+                goto finish;
+            }
+            if (ch_ptr != NULL) *ch_ptr = (char)ch;
+            total_bytes++;
+            success = 1;
+        }
+
+        if (success) spec_index++;
+    }
+
+    if (conversion_error) {
+        result = -(spec_index + 1);
+        goto finish;
+    }
+    result = total_bytes;
+    goto finish;
+
+format_error:
+    /* Ошибка в форматной строке */
+    if (error_pos != NULL) *error_pos = (char*)error_sym;
+    result = -1;
+    goto finish;
+
+finish:
+    va_end(args);
+    return result;
+}
