@@ -146,3 +146,45 @@ static int signed_to_string(int value, char* buf) {
     }
     return len;
 }
+
+// ============================================
+// MY_PRINTF
+// ============================================
+
+int my_printf(IN const char* format, OUT char** error_pos, ...) {
+    /* Проверка на NULL */
+    if (format == NULL) {
+        if (error_pos != NULL) *error_pos = NULL;
+        return -1;
+    }
+
+    va_list args;
+    va_start(args, error_pos);
+
+    output_buffer_t ob;
+    output_init(&ob, 1);
+
+    const char* current = format;
+    const char* error_sym = NULL;
+    int result = -1;
+
+    /* Основной цикл по форматной строке */
+    while (*current != '\0') {
+        /* Обычный символ — выводим как есть */
+        if (*current != '%') {
+            int char_len = utf8_char_length((unsigned char)*current);
+            if (output_string(&ob, current, char_len) != 0) goto write_error;
+            current += char_len;
+            continue;
+        }
+
+        const char* start = current;
+        current++;
+
+        /* Обработка %% — вывод процента */
+        if (*current == '\0') { error_sym = start; goto format_error; }
+        if (*current == '%') {
+            if (output_char(&ob, '%') != 0) goto write_error;
+            current++;
+            continue;
+        }
