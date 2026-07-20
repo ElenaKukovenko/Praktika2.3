@@ -342,3 +342,68 @@ static void init_input() {
         input_initialized = 1;
     }
 }
+
+/* Чтение строки из консоли с поддержкой UTF-8 */
+static int read_console_line(char* buffer, int max_len) {
+    init_input();
+
+    if (max_len <= 0) return 0;
+
+    wchar_t wide_buf[256];
+    DWORD chars_read;
+
+    /* Читаем как UTF-16 */
+    if (!ReadConsoleW(hConsoleIn, wide_buf, max_len - 1, &chars_read, NULL)) {
+        return -1;
+    }
+
+    /* Удаляем \r\n в конце */
+    if (chars_read > 0 && wide_buf[chars_read - 1] == L'\n') {
+        chars_read--;
+        if (chars_read > 0 && wide_buf[chars_read - 1] == L'\r') {
+            chars_read--;
+        }
+    }
+
+    wide_buf[chars_read] = L'\0';
+
+    /* Конвертируем UTF-16 → UTF-8 */
+    int len = WideCharToMultiByte(CP_UTF8, 0, wide_buf, -1, buffer, max_len, NULL, NULL);
+    if (len <= 0) return -1;
+
+    return len - 1;
+}
+
+/* Получение следующего символа из буфера */
+static int get_next_char() {
+    if (input_pos >= input_len) {
+        /* Буфер пуст — читаем новую строку */
+        char new_buf[1024];
+        int len = read_console_line(new_buf, sizeof(new_buf));
+        if (len <= 0) {
+            input_len = 0;
+            input_pos = 0;
+            return EOF;
+        }
+
+        for (int i = 0; i < len; i++) {
+            input_buffer[i] = new_buf[i];
+        }
+        input_len = len;
+        input_pos = 0;
+    }
+
+    if (input_pos >= input_len) {
+        return EOF;
+    }
+
+    return (unsigned char)input_buffer[input_pos++];
+}
+
+/* Возврат одного символа в буфер (ungetc) */
+static void unget_char(int c) {
+    if (c != EOF && input_pos > 0) {
+        input_pos--;
+        input_buffer[input_pos] = (char)c;
+    }
+}
