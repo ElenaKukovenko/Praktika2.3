@@ -147,6 +147,86 @@ static int signed_to_string(int value, char* buf) {
     return len;
 }
 
+/* Преобразование строки в знаковое целое */
+static int string_to_int(const char* buf, int len, int* result) {
+    if (len == 0) return -1;
+
+    int i = 0, sign = 1;
+    /* Обрабатываем знак */
+    if (buf[i] == '-' || buf[i] == '+') {
+        sign = (buf[i] == '-') ? -1 : 1;
+        i++;
+    }
+    if (i == len) return -1;
+
+    unsigned int unsigned_val = 0;
+    for (; i < len; i++) {
+        if (!is_digit_char(buf[i])) return -2;  /* Не цифра */
+        unsigned int digit = buf[i] - '0';
+        /* Проверка переполнения */
+        if (unsigned_val > (UINT_MAX - digit) / 10) return -1;
+        unsigned_val = unsigned_val * 10 + digit;
+    }
+
+    /* Применяем знак с проверкой диапазона */
+    if (sign == 1) {
+        if (unsigned_val > (unsigned int)INT_MAX) return -1;
+        *result = (int)unsigned_val;
+    }
+    else {
+        if (unsigned_val > (unsigned int)INT_MIN) return -1;
+        *result = (unsigned_val == 0) ? 0 : -(int)(unsigned_val - 1) - 1;
+    }
+    return 0;
+}
+
+/* Преобразование строки в беззнаковое целое */
+static int string_to_unsigned(const char* buf, int len, unsigned int* result) {
+    if (len == 0) return -1;
+
+    int i = 0;
+    if (buf[i] == '+') i++;
+    if (i == len) return -1;
+
+    unsigned int unsigned_val = 0;
+    for (; i < len; i++) {
+        if (!is_digit_char(buf[i])) return -2;
+        unsigned int digit = buf[i] - '0';
+        if (unsigned_val > (UINT_MAX - digit) / 10) return -1;
+        unsigned_val = unsigned_val * 10 + digit;
+    }
+    *result = unsigned_val;
+    return 0;
+}
+
+/* Преобразование строки в шестнадцатеричное число */
+static int string_to_hex(const char* buf, int len, unsigned int* result) {
+    if (len == 0) return -1;
+
+    int i = 0;
+    if (buf[i] == '+') i++;
+    if (i == len) return -1;
+
+    unsigned int unsigned_val = 0;
+    for (; i < len; i++) {
+        char c = buf[i];
+        unsigned int digit;
+        if (c >= '0' && c <= '9')
+            digit = c - '0';
+        else if (c >= 'a' && c <= 'f')
+            digit = c - 'a' + 10;
+        else if (c >= 'A' && c <= 'F')
+            digit = c - 'A' + 10;
+        else
+            return -2;  /* Не hex-цифра */
+
+        if (unsigned_val > (UINT_MAX - digit) / 16) return -1;
+        unsigned_val = unsigned_val * 16 + digit;
+    }
+    *result = unsigned_val;
+    return 0;
+}
+
 // ============================================
 // MY_PRINTF
 // ============================================
