@@ -188,3 +188,29 @@ int my_printf(IN const char* format, OUT char** error_pos, ...) {
             current++;
             continue;
         }
+
+        /* Парсинг флагов: '-' (влево) и '0' (заполнение нулями) */
+        int left_align = 0, zero_pad = 0;
+        while (*current == '-' || *current == '0') {
+            if (*current == '-') left_align = 1;
+            else if (*current == '0') zero_pad = 1;
+            current++;
+        }
+
+        /* Парсинг ширины поля */
+        int width = 0;
+        if (*current == '*') {
+            width = va_arg(args, int);
+            if (width < 0) {
+                left_align = 1;
+                zero_pad = 0;
+                width = -width;
+            }
+            current++;
+        }
+        else if (is_digit_char(*current)) {
+            while (is_digit_char(*current)) {
+                width = width * 10 + (*current - '0');
+                current++;
+            }
+        }
