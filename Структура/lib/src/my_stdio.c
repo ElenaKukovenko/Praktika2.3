@@ -323,3 +323,22 @@ finish:
     va_end(args);
     return result;
 }
+
+// ============================================
+// БУФЕР ВВОДА
+// ============================================
+
+static HANDLE hConsoleIn = INVALID_HANDLE_VALUE;
+static char input_buffer[1024];      // Буфер для ввода
+static int input_pos = 0;            // Текущая позиция в буфере
+static int input_len = 0;            // Длина данных в буфере
+static int input_initialized = 0;    // Флаг инициализации
+
+/* Инициализация ввода */
+static void init_input() {
+    if (!input_initialized) {
+        hConsoleIn = GetStdHandle(STD_INPUT_HANDLE);
+        SetConsoleMode(hConsoleIn, ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT);
+        input_initialized = 1;
+    }
+}
